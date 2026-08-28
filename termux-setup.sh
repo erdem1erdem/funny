@@ -19,8 +19,9 @@ pkg install -y python python-pip iproute2 util-linux net-tools libpcap \
     }
 
 echo "[2/4] Python bagimliliklari kuruluyor..."
-pip install --upgrade pip
-pip install scapy netaddr cryptography
+# NOT: Termux'ta 'pip install --upgrade pip' YASAK ('python-pip' paketi pip'i
+# yonettigi icin). Bu yuzden pip'i ayri yukseltmiyoruz.
+python -m pip install scapy netaddr cryptography
 
 echo "[3/4] Proje betigi hazirlaniyor..."
 chmod +x main.py diagnose.py 2>/dev/null || true

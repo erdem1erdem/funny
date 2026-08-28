@@ -23,6 +23,7 @@ fi
 echo "[i] Algilanan ortam: $ENV_NAME"
 echo
 
+# --- Sistem paketleri ---
 if [ "$ENV_NAME" = "termux" ]; then
     echo "[1/4] Termux temel paketleri kuruluyor..."
     pkg update -y
@@ -35,7 +36,7 @@ else
     echo "[1/4] Linux (apt) temel paketleri kuruluyor..."
     if command -v apt-get >/dev/null 2>&1; then
         sudo apt-get update -y
-        sudo apt-get install -y python3 python3-pip python3-scapy \
+        sudo apt-get install -y python3 python3-venv python3-pip python3-scapy \
             python3-netaddr iproute2 iputils-ping net-tools libpcap0.8 \
             openssl libssl-dev build-essential libffi-dev tcpdump || {
                 echo "[!] Bazi apt paketleri kurulamadi. Tek tek deneyin."
@@ -45,10 +46,20 @@ else
     fi
 fi
 
-echo "[2/4] Python bagimliliklari kuruluyor..."
-# NOT: Termux'ta 'pip install --upgrade pip' YASAK ('python-pip' paketi pip'i
-# yonettigi icin). Bu yuzden pip'i ayri yukseltmiyoruz.
-python3 -m pip install scapy netaddr cryptography || python -m pip install scapy netaddr cryptography
+# --- Python ortami: PEP 668'i asmak icin sanal ortam (venv) kullan ---
+VENV_DIR=".venv"
+echo "[2/4] Python sanal ortami ($VENV_DIR) ve bagimliliklari hazirlaniyor..."
+if [ "$ENV_NAME" = "termux" ]; then
+    # Termux'ta Python dogrudan kurulabilir (pip ayrıca yukseltilmez)
+    python -m pip install scapy netaddr cryptography
+else
+    # Debian/Ubuntu: sistem Python'ina pip YASAK (PEP 668). venv sart.
+    if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv "$VENV_DIR"
+    fi
+    "$VENV_DIR/bin/pip" install --upgrade pip >/dev/null 2>&1 || true
+    "$VENV_DIR/bin/pip" install scapy netaddr cryptography
+fi
 
 echo "[3/4] Proje betigi hazirlaniyor..."
 chmod +x main.py diagnose.py 2>/dev/null || true
@@ -61,13 +72,18 @@ if [ "$ENV_NAME" = "wsl" ]; then
     echo "      Sadece tarama/izleme (pasif) denenebilir."
 elif command -v su >/dev/null 2>&1 && su -c 'echo ok' >/dev/null 2>&1; then
     echo "  -> Root mevcut: TUM ozellikler kullanilabilir."
-    echo "     Calistirma:  su -c 'python3 main.py'"
+    echo "     Calistirma:  su -c '$VENV_DIR/bin/python main.py'"
 else
     echo "  -> Root bulunamadi: SADECE tarama/izleme calisir."
     echo "     Kesme/yonlendirme icin root (su) gerekir."
-    echo "     Calistirma:  python3 main.py  (pasif mod)"
+    echo "     Calistirma:  $VENV_DIR/bin/python main.py  (pasif mod)"
 fi
 
 echo
 echo "=== Kurulum tamam ==="
-echo "Calistirma:  python3 main.py"
+echo "Calistirma:"
+if [ "$ENV_NAME" = "termux" ]; then
+    echo "  python main.py"
+else
+    echo "  $VENV_DIR/bin/python main.py"
+fi

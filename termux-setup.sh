@@ -26,19 +26,21 @@ echo
 # --- Sistem paketleri ---
 if [ "$ENV_NAME" = "termux" ]; then
     echo "[1/4] Termux temel paketleri kuruluyor..."
+    # NOT: cryptography'yi pip ile KURMA; rust/maturin derlemesi gerekir ve
+    # basarisiz olur. Termux paketi 'python-cryptography' ile kur.
     pkg update -y
-    pkg install -y python python-pip iproute2 util-linux net-tools libpcap \
-        openssl ndk-sysroot clang make libffi || {
+    pkg install -y python python-pip python-cryptography iproute2 util-linux \
+        net-tools libpcap openssl ndk-sysroot clang make libffi || {
             echo "[!] Bazi paketler kurulamadi. Asagidakileri tek tek deneyin:"
-            echo "    pkg install python iproute2 libpcap"
+            echo "    pkg install python python-cryptography iproute2 libpcap"
         }
 else
     echo "[1/4] Linux (apt) temel paketleri kuruluyor..."
     if command -v apt-get >/dev/null 2>&1; then
         sudo apt-get update -y
         sudo apt-get install -y python3 python3-venv python3-pip python3-scapy \
-            python3-netaddr iproute2 iputils-ping net-tools libpcap0.8 \
-            openssl libssl-dev build-essential libffi-dev tcpdump || {
+            python3-netaddr python3-cryptography iproute2 iputils-ping net-tools \
+            libpcap0.8 openssl libssl-dev build-essential libffi-dev tcpdump || {
                 echo "[!] Bazi apt paketleri kurulamadi. Tek tek deneyin."
             }
     else
@@ -46,14 +48,15 @@ else
     fi
 fi
 
-# --- Python ortami: PEP 668'i asmak icin sanal ortam (venv) kullan ---
+# --- Python ortami ---
 VENV_DIR=".venv"
-echo "[2/4] Python sanal ortami ($VENV_DIR) ve bagimliliklari hazirlaniyor..."
+echo "[2/4] Python bagimliliklari hazirlaniyor..."
 if [ "$ENV_NAME" = "termux" ]; then
-    # Termux'ta Python dogrudan kurulabilir (pip ayrıca yukseltilmez)
-    python -m pip install scapy netaddr cryptography
+    # Termux'ta cryptography zaten pkg ile kuruldu; scapy/netaddr saf Python, pip yeterli.
+    # (pip'i ayrica yukseltmeyin - 'python-pip' paketi yonetir.)
+    python -m pip install scapy netaddr
 else
-    # Debian/Ubuntu: sistem Python'ina pip YASAK (PEP 668). venv sart.
+    # Debian/Ubuntu: sistem Python'ina pip YASAK (PEP 668) ve venv gerekir.
     if [ ! -d "$VENV_DIR" ]; then
         python3 -m venv "$VENV_DIR"
     fi
@@ -64,6 +67,13 @@ fi
 echo "[3/4] Proje betigi hazirlaniyor..."
 chmod +x main.py diagnose.py 2>/dev/null || true
 
+# Calistirilacak python yorumlayicisi: Termux'ta 'python', digerinde '.venv/bin/python'
+if [ "$ENV_NAME" = "termux" ]; then
+    PY="python"
+else
+    PY="$VENV_DIR/bin/python"
+fi
+
 echo "[4/4] Root / WSL durumu kontrol ediliyor..."
 if [ "$ENV_NAME" = "wsl" ]; then
     echo "  [x] WSL algilandi: ARP spoofing BU ORTAMDA CALISMAZ."
@@ -72,18 +82,14 @@ if [ "$ENV_NAME" = "wsl" ]; then
     echo "      Sadece tarama/izleme (pasif) denenebilir."
 elif command -v su >/dev/null 2>&1 && su -c 'echo ok' >/dev/null 2>&1; then
     echo "  -> Root mevcut: TUM ozellikler kullanilabilir."
-    echo "     Calistirma:  su -c '$VENV_DIR/bin/python main.py'"
+    echo "     Calistirma:  su -c '$PY main.py'"
 else
     echo "  -> Root bulunamadi: SADECE tarama/izleme calisir."
     echo "     Kesme/yonlendirme icin root (su) gerekir."
-    echo "     Calistirma:  $VENV_DIR/bin/python main.py  (pasif mod)"
+    echo "     Calistirma:  $PY main.py  (pasif mod)"
 fi
 
 echo
 echo "=== Kurulum tamam ==="
 echo "Calistirma:"
-if [ "$ENV_NAME" = "termux" ]; then
-    echo "  python main.py"
-else
-    echo "  $VENV_DIR/bin/python main.py"
-fi
+echo "  $PY main.py"

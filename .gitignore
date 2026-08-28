@@ -1,0 +1,5 @@
+# WiFi Killer - gizli anahtarlar (kok CA private key)
+certs/
+venv/
+__pycache__/
+.idea/
